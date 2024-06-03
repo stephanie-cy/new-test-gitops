@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:  
+    tad.gitops.set/image: ".spec.template.spec.containers[0].image"
+    tad.gitops.get/image: ".spec.template.spec.containers[0].image"
+    tad.gitops.set/replicas: ".spec.replicas"
+    tad.gitops.get/replicas: ".spec.replicas" 
+  labels: 
+    app.kubernetes.io/instance: new-test
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name:  new-test
+    app.kubernetes.io/part-of: new-test  
+  name: new-test
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance:  new-test 
+  template:
+    metadata: 
+      labels:
+        app.kubernetes.io/instance:  new-test
+    spec:
+      initContainers:
+      - name: model-file
+        image: quay.io/yangcao/mistral-7b-code-16k-qlora:latest
+        command: ['/usr/bin/install', "/model/model.file", "/shared/"]
+        volumeMounts:
+        - name: model-file
+          mountPath: /shared
+      containers:
+      - env:
+        - name: MODEL_ENDPOINT
+          value: http://0.0.0.0:8001
+        image:  quay.io/ai-lab/codegen:latest
+        name: app-inference
+        ports:
+        - containerPort: 8501
+        securityContext:
+          runAsNonRoot: true
+      - env:
+        - name: HOST
+          value: "0.0.0.0"
+        - name: PORT
+          value: "8001"
+        - name: MODEL_PATH
+          value: /model/model.file
+        image: quay.io/ai-lab/llamacpp_python:latest
+        volumeMounts:
+        - name: model-file
+          mountPath: /model
+        name: app-model-service
+        ports:
+        - containerPort: 8001
+        securityContext:
+          runAsNonRoot: true
+      volumes:
+      - name: model-file
+        emptyDir: {}
